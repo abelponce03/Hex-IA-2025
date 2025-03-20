@@ -2,37 +2,39 @@ from collections import deque
 from config import COLORS
 
 def check_win(player, board):
-        player_color = COLORS[f'player{player}']
-        edge_hexes = []
-        target_edge = []
-        
-        # Definir bordes objetivo
-        if player == 1:
-            edge_hexes = [hex for hex in board.values() if hex.q == 4]
-            target_edge = lambda h: h.q == -4
-        else:
-            edge_hexes = [hex for hex in board.values() if hex.r == 4]
-            target_edge = lambda h: h.r == -4
-        
-        # BFS desde todos los hexágonos del borde inicial
-        visited = set()
-        queue = deque()
-        
-        for hex in edge_hexes:
-            if hex.color == player_color:
-                queue.append(hex)
-                visited.add(hex)
-        
-        while queue:
-            current = queue.popleft()
-            if target_edge(current):
-                return True
-            for neighbor in get_neighbors(current, board):
-                if neighbor.color == player_color and neighbor not in visited:
-                    visited.add(neighbor)
-                    queue.append(neighbor)
-        
-        return False
+    player_color = COLORS[f'player{player}']
+    
+    # Definir bordes según el jugador
+    if player == 1:
+        # Borde izquierdo: q + r = -5 (desde r=0 hasta r=10)
+        edge_hexes = [hex for hex in board.values() if hex.q + hex.r == -5]
+        # Borde derecho: q + r = 5 (desde r=0 hasta r=10)
+        target_edge = lambda h: h.q + h.r == 5
+    else:
+        # Borde superior: r = 10 (desde q=-15 hasta q=-5)
+        edge_hexes = [hex for hex in board.values() if hex.r == 10]
+        # Borde inferior: r = 0 (desde q=-5 hasta q=5)
+        target_edge = lambda h: h.r == 0
+
+    # BFS para encontrar camino continuo
+    visited = set()
+    queue = deque()
+    
+    for hex in edge_hexes:
+        if hex.color == player_color:
+            queue.append(hex)
+            visited.add(hex)
+    
+    while queue:
+        current = queue.popleft()
+        if target_edge(current):
+            return True
+        for neighbor in get_neighbors(current, board):
+            if neighbor.color == player_color and neighbor not in visited:
+                visited.add(neighbor)
+                queue.append(neighbor)
+    
+    return False
     
     
 def get_neighbors(hex, board):
