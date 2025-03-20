@@ -1,6 +1,7 @@
 import math
 import pygame
-from config import HEX_SIZE, COLORS
+from config import HEX_SIZE, COLORS, WIDTH, HEIGHT
+from hexagon import Hexagon
 
 
 def draw_hexagon(screen, hex, hover=False):
@@ -28,3 +29,48 @@ def draw_hexagon(screen, hex, hover=False):
     
     # Borde
     pygame.gfxdraw.aapolygon(screen, corners, COLORS['hex_border'])
+    
+    
+def draw_win_message(screen, player):
+    font = pygame.font.Font(None, 74)
+    text = font.render(f"¡Jugador {player} gana!", True, COLORS['text'])
+    text_rect = text.get_rect(center=(WIDTH//2, HEIGHT//2))
+    screen.blit(text, text_rect)
+    
+    
+def draw_edges(screen):
+    
+    
+    #Esquinas donde ambos pueden conectar
+    pygame.draw.circle(screen, (255, 255, 255), Hexagon(-5,0).get_pixel_position(), 8)  # Círculos más grandes
+    pygame.draw.circle(screen, (255, 255, 255), Hexagon(-15,10).get_pixel_position(), 8)  # Círculos más grandes
+    pygame.draw.circle(screen, (255, 255, 255), Hexagon(-5,10).get_pixel_position(), 8)  # Círculos más grandes
+    pygame.draw.circle(screen, (255, 255, 255), Hexagon(5,0).get_pixel_position(), 8)  # Círculos más grandes
+    
+    #Centro donde no se puede poner ficha el primer turno
+    pygame.draw.circle(screen, (200, 10, 47), Hexagon(-5,5).get_pixel_position(), 8)  # Círculos más grandes
+    pygame.draw.circle(screen, (255, 255, 255), Hexagon(-5,5).get_pixel_position(), 8, 2)  # Borde blanco
+    
+    for player in [1, 2]:
+        color = COLORS[f'player{player}']
+        start_hexes = []
+        end_hexes = []
+        
+        # Dibujar borde inicial
+        if player == 2:
+            for i in range(-4, 5) :
+                start_hexes.append(Hexagon(i, 0))
+                end_hexes.append(Hexagon(i - 10, 10))
+        else:
+            j = 0
+            for i in range(-14, -5):
+                start_hexes.append(Hexagon(i, 9 - j))
+                end_hexes.append(Hexagon(i + 10, 9 - j))
+                j = j + 1
+                
+        # Dibujar ambos bordes
+        for hex in start_hexes + end_hexes:
+            pygame.draw.circle(screen, color, hex.get_pixel_position(), 8)  # Círculos más grandes
+            pygame.draw.circle(screen, (255, 255, 255), hex.get_pixel_position(), 8, 2)  # Borde blanco
+            
+    

@@ -12,5 +12,5 @@ class Hexagon:
         if not self._pixel_pos:  # Calcular solo una vez
             x = HEX_SIZE * (math.sqrt(3) * self.q + math.sqrt(3)/2 * self.r)
             y = HEX_SIZE * (3/2 * self.r)
-            self._pixel_pos = (x + WIDTH//2, y + HEIGHT//2)
+            self._pixel_pos = (x + 750, y + 100)
         return self._pixel_pos

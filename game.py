@@ -1,13 +1,15 @@
 import pygame
 import math
 from config import  HEX_SIZE, COLORS
-from hexagon import Hexagon
+from board import init_board
+from win_condition import check_win
 
 class HexagonGame:
     def __init__(self):
-        self.board = {}
-        self.init_board()
+        self.board = init_board()
         self.current_player = 1
+        self.sounds = self.load_sounds()
+        self.game_over = False
         
     def load_sounds(self):
         pygame.mixer.init()
@@ -17,13 +19,6 @@ class HexagonGame:
             'click': pygame.mixer.Sound('sounds/click.wav'),
             'win': pygame.mixer.Sound('sounds/win.wav')
         }
-    
-    def init_board(self):
-        # Patrón hexagonal concéntrico
-        radius = 4
-        for q in range(-radius, radius + 1):
-            for r in range(max(-radius, -q - radius), min(radius, -q + radius) + 1):
-                self.board[(q, r)] = Hexagon(q, r)
     
     def get_hex_at_position(self, pos):
         closest_hex = None
@@ -38,7 +33,17 @@ class HexagonGame:
         return closest_hex
     
     def handle_click(self, pos):
+        if self.game_over:
+            return
+            
         hex = self.get_hex_at_position(pos)
         if hex and not hex.color:
+            self.sounds['click'].play()
             hex.color = COLORS[f'player{self.current_player}']
-            self.current_player = 2 if self.current_player == 1 else 1
+            self.sounds['place'].play()
+            
+            if check_win(self.current_player, self.board):
+                self.sounds['win'].play()
+                self.game_over = True
+            else:
+                self.current_player = 2 if self.current_player == 1 else 1

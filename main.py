@@ -1,9 +1,8 @@
 import pygame
-import math
 import pygame.gfxdraw
-from table import HexagonGame
+from game import HexagonGame
 from config import WIDTH, HEIGHT, COLORS
-from draw import draw_hexagon
+from draw import draw_hexagon, draw_win_message, draw_edges
 
 
 def main():
@@ -13,6 +12,7 @@ def main():
     clock = pygame.time.Clock()
     game = HexagonGame()
     hover_hex = None
+    prev_hover_hex = None  # Para detectar cambios en el hover
 
     running = True
     while running:
@@ -26,9 +26,21 @@ def main():
             elif event.type == pygame.MOUSEBUTTONDOWN:
                 game.handle_click(mouse_pos)
 
+        # Sonido al pasar sobre hexágono
+        if hover_hex != prev_hover_hex and hover_hex is not None:
+            game.sounds['hover'].play()
+        prev_hover_hex = hover_hex
+        
         # Dibujar hexágonos
         for hex in game.board.values():
             draw_hexagon(screen, hex, hover_hex == hex)
+            
+        #Dibujar extremos a conectar
+        draw_edges(screen)
+            
+        # Mensaje de victoria
+        if game.game_over:
+            draw_win_message(screen, game.current_player)
 
         pygame.display.flip()
         clock.tick(60)
