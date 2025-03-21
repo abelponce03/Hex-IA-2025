@@ -1,25 +1,69 @@
-import pygame
 import math
-from config import  HEX_SIZE, COLORS
+from config import HEX_SIZE, COLORS
 from board import init_board
 from win_condition import check_win
+from sounds.sounds import load_sounds
+from hexagon import Hexagon
+from IA.Minimax import Minimax
+
 
 class HexagonGame:
-    def __init__(self):
+    def __init__(self, vs_ai=True):
         self.board = init_board()
         self.current_player = 1
-        self.sounds = self.load_sounds()
+        self.sounds = load_sounds()
         self.game_over = False
         self.first_turn_blocked = True
+        self.vs_ai = vs_ai
+        self.move_history = []
+    
+    def ai_turn(self):
+        if self.current_player != 2 or self.game_over or not self.vs_ai:
+            return
         
-    def load_sounds(self):
-        pygame.mixer.init()
-        return {
-            'place': pygame.mixer.Sound('sounds/place.wav'),
-            'hover': pygame.mixer.Sound('sounds/hover.wav'),
-            'click': pygame.mixer.Sound('sounds/click.wav'),
-            'win': pygame.mixer.Sound('sounds/win.wav')
-        }
+        minimax = Minimax(self, depth=2)
+        best_move = minimax.decision()
+        if best_move:
+            self.play_move(*best_move)
+    
+    
+    def clone(self):
+        cloned_game = HexagonGame(self.vs_ai)
+        # Corregir la creación de hexágonos - ajustar según la definición de la clase Hexagon
+        cloned_game.board = {}
+        for (q, r), h in self.board.items():
+            # Crear hexágonos con la cantidad correcta de parámetros
+            # Opción 1: Si Hexagon recibe (q, r) y color es una propiedad
+            new_hex = Hexagon(q, r)
+            new_hex.color = h.color
+            cloned_game.board[(q, r)] = new_hex
+        
+            # Opción 2: Si realmente el constructor recibe 3 argumentos
+            # cloned_game.board[(q, r)] = Hexagon(q, r, h.color)
+    
+        # Copiar otros atributos necesarios
+        cloned_game.current_player = self.current_player
+        cloned_game.first_turn_blocked = self.first_turn_blocked
+        cloned_game.game_over = self.game_over
+    
+        return cloned_game
+
+    def play_move(self, q, r):
+        hex = self.board.get((q, r))
+        if hex and not hex.color:
+            hex.color = COLORS[f'player{self.current_player}']
+            self.move_history.append((q, r))
+        
+            if check_win(self.current_player, self.board):
+                self.game_over = True
+                self.sounds['win'].play()
+            else:
+                self.current_player = 3 - self.current_player  # Alternar turno
+                self.first_turn_blocked = False  # Desbloquear después del primer turno
+        
+            return True
+        return False
+    
     
     def get_hex_at_position(self, pos):
         closest_hex = None
@@ -34,29 +78,18 @@ class HexagonGame:
         return closest_hex
     
     def handle_click(self, pos):
-        if self.game_over:
+        if self.game_over or (self.vs_ai and self.current_player == 2):
             return
-        
+    
         hex = self.get_hex_at_position(pos)
-        if not hex:
+        if not hex or hex.color:
             return
-        
-         # Bloquear (-5, 5) solo en primer turno
+    
+        # Validar bloqueo primer turno
         if self.first_turn_blocked and self.current_player == 1:
-            if hex.q == -5 and hex.r == 5:
-                return  # No permitir colocación
-        
-        
-        if hex and not hex.color:
-            self.sounds['click'].play()
-            hex.color = COLORS[f'player{self.current_player}']
-            self.sounds['place'].play()
-            
-            # Desactivar bloqueo después de primer turno
-            self.first_turn_blocked = False
-            
-            if check_win(self.current_player, self.board):
-                self.sounds['win'].play()
-                self.game_over = True
-            else:
-                self.current_player = 2 if self.current_player == 1 else 1
+            if (hex.q, hex.r) == (-5, 5):
+                return
+    
+        self.play_move(hex.q, hex.r)
+                
+                

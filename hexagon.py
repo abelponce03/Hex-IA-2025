@@ -1,5 +1,5 @@
 import math
-from config import WIDTH, HEIGHT, HEX_SIZE
+from config import  HEX_SIZE
 
 class Hexagon:
     def __init__(self, q, r):

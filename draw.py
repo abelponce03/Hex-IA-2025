@@ -74,3 +74,29 @@ def draw_edges(screen):
             pygame.draw.circle(screen, (255, 255, 255), hex.get_pixel_position(), 8, 2)  # Borde blanco
             
     
+    
+def draw_menu(screen):
+    screen.fill(COLORS['background'])
+    font = pygame.font.Font(None, 74)
+    
+    # Título
+    title = font.render("HEXAGON MODERNO", True, COLORS['text'])
+    title_rect = title.get_rect(center=(WIDTH//2, HEIGHT//4))
+    screen.blit(title, title_rect)
+    
+    # Botones
+    button_font = pygame.font.Font(None, 50)
+    
+    # Botón Jugador vs IA
+    pygame.draw.rect(screen, COLORS['player1'], (WIDTH//2 - 150, HEIGHT//2 - 50, 300, 70))
+    text_ia = button_font.render("Jugar vs IA", True, COLORS['text'])
+    text_ia_rect = text_ia.get_rect(center=(WIDTH//2, HEIGHT//2 - 15))
+    screen.blit(text_ia, text_ia_rect)
+    
+    # Botón Jugador vs Jugador
+    pygame.draw.rect(screen, COLORS['player2'], (WIDTH//2 - 150, HEIGHT//2 + 50, 300, 70))
+    text_pvp = button_font.render("Jugar vs Jugador", True, COLORS['text'])
+    text_pvp_rect = text_pvp.get_rect(center=(WIDTH//2, HEIGHT//2 + 85))
+    screen.blit(text_pvp, text_pvp_rect)
+    
+    pygame.display.flip()
