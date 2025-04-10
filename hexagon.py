@@ -14,6 +14,15 @@ class Hexagon:
     def reset_hex_size(cls):  
         cls.HEX_SIZE = None
         cls._pixel_pos = None
+        
+    @classmethod
+    def calculate_hex_size(cls, hexagons):
+        max_dim = max(max(abs(h.q), abs(h.r)) for h in hexagons)
+        base_size = min(
+            WIDTH / (max_dim * 1.05 * 2),
+            HEIGHT / (max_dim * 1.05 * 2)
+        )
+        return max(int(base_size), 2)
 
     def get_pixel_position(self, board):
         if Hexagon.HEX_SIZE is None:

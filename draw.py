@@ -8,6 +8,10 @@ from botons.exit import exit
 
 
 def draw_hexagon(screen, hex, hover=False, board=None):
+    
+    if Hexagon.HEX_SIZE is None and board:
+        hex.get_pixel_position(board)  # Fuerza el cálculo de HEX_SIZE
+    
     center = hex.get_pixel_position(board)
     corners = []
     for i in range(6):
@@ -56,17 +60,25 @@ def draw_rounded_rect(surface, rect, color, radius=15):
     pygame.draw.circle(surface, color, (rect.x + radius, rect.y + rect.height - radius), radius)
     pygame.draw.circle(surface, color, (rect.x + rect.width - radius, rect.y + rect.height - radius), radius)
 
-def blur_surface(surface, amount):
-    """Efecto de desenfoque usando escalado"""
-    scale = 1.0 / amount
-    small = pygame.transform.smoothscale(surface, (int(WIDTH*scale), int(HEIGHT*scale)))
-    return pygame.transform.smoothscale(small, (WIDTH, HEIGHT))
+def blur_surface(surface, radius):
+    """Desenfoque gaussiano usando múltiples pasadas de escalado suavizado"""
+    # Optimización: reducimos progresivamente la resolución
+    current_surface = surface.copy()
+    for i in range(radius):
+        scale_factor = 1.0 - (i / (radius * 2))
+        w = int(current_surface.get_width() * scale_factor)
+        h = int(current_surface.get_height() * scale_factor)
+        current_surface = pygame.transform.smoothscale(current_surface, (w, h))
+    
+    # Escalar de vuelta al tamaño original
+    return pygame.transform.smoothscale(current_surface, (surface.get_size()))
 
 def draw_win_message(screen, game, background):
     
-    # Aplicar desenfoque al fondo
-    blurred_bg = blur_surface(background, 8)
-    screen.blit(blurred_bg, (0, 0))
+    if not hasattr(game, 'cached_blur'):
+        game.cached_blur = blur_surface(background, 4)  # Radio 4 para equilibrio calidad/rendimiento
+    
+    screen.blit(game.cached_blur, (0, 0))
     
     # Capa oscura semi-transparente
     overlay = pygame.Surface((WIDTH, HEIGHT), pygame.SRCALPHA)
@@ -287,3 +299,16 @@ def draw_menu(screen):
 
     pygame.display.flip()
     return btn_ia, btn_pvp, btn_exit
+
+# draw.py (nueva función)
+def draw_ai_thinking(screen):
+    font = pygame.font.SysFont('Arial', 40, italic=True)
+    text = font.render("IA pensando...", True, (200, 200, 200))
+    rect = text.get_rect(center=(WIDTH//2, HEIGHT - 50))
+    
+    # Fondo semitransparente
+    bg = pygame.Surface((rect.width + 20, rect.height + 10), pygame.SRCALPHA)
+    pygame.draw.rect(bg, (0, 0, 0, 100), bg.get_rect(), border_radius=15)
+    screen.blit(bg, (rect.x - 10, rect.y - 5))
+    
+    screen.blit(text, rect)

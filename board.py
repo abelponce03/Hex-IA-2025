@@ -8,5 +8,8 @@ def init_board(size):
         q_end = size - offset - r
         for q in range(q_start, q_end):
             board[(q, r)] = Hexagon(q, r)
+            
+    # Calcular HEX_SIZE después de crear todos los hexágonos
+    Hexagon.HEX_SIZE = Hexagon.calculate_hex_size(board.values())
     return board
     

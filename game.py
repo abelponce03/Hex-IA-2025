@@ -4,7 +4,9 @@ from board import init_board
 from win_condition import check_win
 from sounds.sounds import load_sounds
 from hexagon import Hexagon
-from IA.A_Star import astar_search, HexagonProblem, failure
+from IA.Minimax import minimax
+import threading
+import queue
 
 
 class HexagonGame:
@@ -17,13 +19,15 @@ class HexagonGame:
         self.game_over = False
         self.vs_ai = vs_ai
         self.move_history = []
+        self.ai_queue = queue.Queue()
+        self.ai_thinking = False
+        self.transposition_table = {}  # Tabla de transposición
         
     def clone(self):
         cloned_game = HexagonGame(self.vs_ai, self.board_size)
         cloned_game.board = {pos: Hexagon(hex.q, hex.r) for pos, hex in self.board.items()}
         for pos, hex in self.board.items():
             cloned_game.board[pos].color = hex.color
-        cloned_game.board_size = self.board_size
         cloned_game.current_player = self.current_player
         cloned_game.game_over = self.game_over
         cloned_game.move_history = self.move_history.copy()
@@ -71,13 +75,55 @@ class HexagonGame:
 
 
 def ai_turn(game):
-    if game.current_player != 2 or game.game_over or not game.vs_ai:
+    if game.ai_thinking or game.current_player != 2 or game.game_over or not game.vs_ai:
         return
     
-    problem = HexagonProblem(game.clone())
-    result_node = astar_search(problem)
+    def ai_worker():
+        try:
+            import time
+            from IA.Minimax import start_time, MAX_TIME
+            
+            # Reiniciar el tiempo
+            global start_time
+            start_time = time.time()
+            
+            # Iterative deepening con límite de tiempo
+            best_move = None
+            for depth in range(1, 4):  # Empezar con profundidad 1, incrementar hasta 3
+                # Si ya gastamos más de la mitad del tiempo, usar el mejor movimiento encontrado
+                if time.time() - start_time > MAX_TIME * 0.5 and best_move is not None:
+                    break
+                    
+                # Intentar con la profundidad actual
+                _, move = minimax(
+                    game.clone(), 
+                    depth=depth,
+                    alpha=-float('inf'),
+                    beta=float('inf'),
+                    maximizing_player=True
+                )
+                
+                # Si se encontró un movimiento válido, actualizar el mejor
+                if move is not None:
+                    best_move = move
+                
+                # Si nos estamos acercando al límite de tiempo, salir
+                if time.time() - start_time > MAX_TIME * 0.8:
+                    break
+            
+            # Si no se encontró ningún movimiento, seleccionar uno disponible
+            if best_move is None:
+                from random import choice
+                empty_hexes = [(hex.q, hex.r) for hex in game.board.values() if not hex.color]
+                if empty_hexes:
+                    best_move = choice(empty_hexes)
+            
+            game.ai_queue.put(best_move)
+        except Exception as e:
+            print(f"Error en IA: {e}")
+            game.ai_queue.put(None)
+        finally:
+            game.ai_thinking = False
     
-    if result_node and result_node != failure:
-        best_move = result_node.action
-        if best_move:
-            game.play_move(*best_move)
+    game.ai_thinking = True
+    threading.Thread(target=ai_worker, daemon=True).start()
