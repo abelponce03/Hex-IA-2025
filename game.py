@@ -81,10 +81,10 @@ def ai_turn(game):
     def ai_worker():
         try:
             import time
+            global start_time
             from IA.Minimax import start_time, MAX_TIME
             
             # Reiniciar el tiempo
-            global start_time
             start_time = time.time()
             
             # Iterative deepening con límite de tiempo

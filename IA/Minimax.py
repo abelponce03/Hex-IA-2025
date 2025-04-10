@@ -107,24 +107,32 @@ def get_legal_moves(game_state):
     board = game_state.board
     current_player = game_state.current_player
     player_color = COLORS[f'player{current_player}']
-    enemy_color = COLORS[f'player{3-current_player}']
     
     # Primeros movimientos predefinidos para ahorrar tiempo
     if len(game_state.move_history) == 0:
         # Primer movimiento - tomar el centro
-        offset = game_state.board_size // 2
         return [(0, 0)]  # Centro del tablero
-    
-    # Lista simple para movimientos (optimizado)
-    winning_moves = []
-    blocking_moves = []
-    connecting_moves = []
-    strategic_moves = []
     
     # Casillas vacías
     empty_positions = [(hex.q, hex.r) for hex in board.values() if not hex.color]
     
-    # Evaluar cada movimiento posible de manera eficiente
+    # Diccionario para clasificar y priorizar movimientos
+    moves_by_type = {
+        'winning': [],      # Movimientos que ganan directamente
+        'blocking': [],     # Movimientos que bloquean victoria del oponente
+        'blocking_path': [],# Movimientos que bloquean camino crítico del oponente
+        'strategic': []     # Otros movimientos estratégicos
+    }
+    
+    # Análisis de caminos críticos - detectar caminos del oponente
+    opponent = 3 - current_player
+    opponent_path = shortest_path_length(board, game_state.board_size, opponent)
+    
+    # Si el oponente tiene un camino "corto" (amenaza seria), priorizar bloqueo
+    critical_path_threshold = min(game_state.board_size, 5)
+    critical_blocking_needed = opponent_path <= critical_path_threshold
+    
+    # Evaluar cada movimiento posible
     for pos in empty_positions:
         q, r = pos
         
@@ -132,87 +140,114 @@ def get_legal_moves(game_state):
         temp_game = game_state.clone()
         temp_game.play_move(q, r)
         if temp_game.game_over:
-            winning_moves.append(pos)
+            moves_by_type['winning'].append(pos)
             continue
             
         # Verificar si bloquea una victoria del oponente
         temp_game = game_state.clone()
-        temp_game.current_player = 3 - current_player  # Simular oponente
+        temp_game.current_player = opponent
         temp_game.play_move(q, r)
         if temp_game.game_over:
-            blocking_moves.append(pos)
+            moves_by_type['blocking'].append(pos)
             continue
         
-        # Contar conexiones propias adyacentes
-        own_adjacent = 0
-        for dq, dr in [(1,0), (-1,0), (0,1), (0,-1), (1,-1), (-1,1)]:
-            neighbor = (q + dq, r + dr)
-            if neighbor in board and board[neighbor].color == player_color:
-                own_adjacent += 1
-        
-        if own_adjacent >= 2:
-            connecting_moves.append(pos)
-        else:
-            strategic_moves.append(pos)
+        # Verificar si bloquea un camino crítico del oponente
+        if critical_blocking_needed:
+            # Verificar si este movimiento aumenta la longitud del camino del oponente
+            board_copy = board.copy()
+            if (q, r) in board_copy:
+                # Simulamos colocar nuestra ficha aquí
+                board_copy[(q, r)].color = player_color
+                new_path = shortest_path_length(board_copy, game_state.board_size, opponent)
+                
+                # Si aumentó la longitud del camino, es un buen bloqueo
+                if new_path > opponent_path + 1:
+                    moves_by_type['blocking_path'].append((pos, new_path - opponent_path))
+                    continue
     
-    # Combinar por prioridad
-    all_moves = winning_moves + blocking_moves + connecting_moves + strategic_moves
+    # Ordenar los bloqueos de camino por efectividad
+    if moves_by_type['blocking_path']:
+        moves_by_type['blocking_path'].sort(key=lambda x: x[1], reverse=True)
+        moves_by_type['blocking_path'] = [pos for pos, _ in moves_by_type['blocking_path']]
     
-    # Limitar el número de movimientos a considerar para mejorar velocidad
-    max_moves = min(10, len(all_moves))
-    return all_moves[:max_moves]
-
-def strategic_value(pos, board_size, player=2):
-    q, r = pos
-    offset = board_size // 2
+    # Unir todas las categorías por orden de prioridad
+    all_moves = (
+        moves_by_type['winning'] + 
+        moves_by_type['blocking'] + 
+        moves_by_type['blocking_path'] + 
+        moves_by_type['strategic']
+    )
     
-    # La estrategia es diferente dependiendo del jugador
-    if player == 1:  # Jugador 1 (horizontal)
-        # Priorizar posiciones que ayuden a conectar horizontalmente
-        horizontal_value = abs(r)  # Menor valor = mejor (cerca del eje horizontal)
-        progress_value = q + offset  # Mayor valor = mejor (avance hacia la derecha)
-        return horizontal_value * 2 - progress_value
-    else:  # Jugador 2 (vertical)
-        # Priorizar posiciones que ayuden a conectar verticalmente
-        vertical_value = abs(q)  # Menor valor = mejor (cerca del eje vertical)
-        progress_value = offset - r  # Mayor valor = mejor (avance hacia abajo)
-        return vertical_value * 2 - progress_value
+    # Limitar el número de movimientos para mejorar velocidad
+    max_moves = min(12, len(all_moves))
+    return all_moves[:max_moves] if all_moves else empty_positions[:12]
 
 def evaluate(game_state):
-    # Comprobar victoria inmediata (prioridad máxima)
+    # Comprobar victoria inmediata
     if game_state.game_over:
         winner = 3 - game_state.current_player  # El jugador que hizo el último movimiento
         return 10000 if winner == 2 else -10000
     
-    # Versión simplificada - evaluar solo caminos cuando es necesario
-    # Para tableros con pocos movimientos, usar heurística sencilla
-    if len(game_state.move_history) < 5:
+    # Para tableros con muy pocos movimientos, usar heurística sencilla
+    if len(game_state.move_history) < 3:
         return evaluate_quick(game_state)
     
-    # Calcular caminos más cortos
+    # Calcular caminos más cortos (componente principal)
     p1_path = shortest_path_length(game_state.board, game_state.board_size, 1)
     p2_path = shortest_path_length(game_state.board, game_state.board_size, 2)
     
     # Distancia de caminos
     if p1_path == float('inf') and p2_path == float('inf'):
-        path_diff = 0
+        path_score = 0
     elif p1_path == float('inf'):
-        path_diff = 1000  # Ventaja para jugador 2
+        path_score = 2000  # Ventaja para jugador 2
     elif p2_path == float('inf'):
-        path_diff = -1000  # Ventaja para jugador 1
+        path_score = -2000  # Ventaja para jugador 1
     else:
-        # Simplificado para mayor velocidad
-        path_diff = p1_path - p2_path
+        # Enfatizar bloquear al jugador 1 (humano)
+        if p1_path < game_state.board_size // 2:
+            path_score = (p1_path**0.8) - (p2_path**1.5)
+        else:
+            path_score = p1_path - p2_path**1.2
     
-    # Simplificar la evaluación para mayor velocidad
-    return path_diff * 10
+    # Integrar evaluaciones avanzadas
+    key_positions_score = evaluate_key_positions(game_state)
+    
+    # Contar grupos (menos grupos es mejor - significa mayor conectividad)
+    p1_groups = count_groups(game_state.board, 1)
+    p2_groups = count_groups(game_state.board, 2)
+    group_score = (p1_groups - p2_groups) * 25
+    
+    # Analizar amenazas
+    threat_score = analyze_threats_and_defenses(game_state)
+    
+    # Ajustar pesos según fase del juego
+    move_count = len(game_state.move_history)
+    
+    if move_count < 8:  # Fase temprana
+        path_weight = 0.5
+        key_pos_weight = 0.3
+        group_weight = 0.05
+        threat_weight = 0.15
+    else:  # Fase media y final
+        path_weight = 0.6
+        key_pos_weight = 0.15
+        group_weight = 0.05
+        threat_weight = 0.2
+    
+    # Combinar componentes con sus pesos
+    final_score = (
+        path_weight * path_score + 
+        key_pos_weight * key_positions_score + 
+        group_weight * group_score +
+        threat_weight * threat_score
+    )
+    
+    return final_score
 
 def evaluate_quick(game_state):
     """Evaluación rápida para primeros movimientos"""
-    from config import COLORS
-    
     score = 0
-    center_q, center_r = 0, 0  # Centro del tablero
     player1_pieces = 0
     player2_pieces = 0
     
@@ -233,8 +268,6 @@ def evaluate_quick(game_state):
 
 def evaluate_key_positions(game_state):
     """Evalúa el control de posiciones estratégicas en el tablero"""
-    board_size = game_state.board_size
-    offset = board_size // 2
     score = 0
     
     # Casillas centrales son muy valiosas en Hex
@@ -254,7 +287,6 @@ def evaluate_key_positions(game_state):
                 score += 30
     
     # Evaluar casillas que forman parte de los caminos más cortos
-    # (Simulación simplificada)
     for (q, r), hex in game_state.board.items():
         # Posiciones que forman "rutas naturales"
         if hex.color == COLORS['player1']:
@@ -266,71 +298,62 @@ def evaluate_key_positions(game_state):
     
     return score
 
-def evaluate_bridges(game_state):
-    """Evalúa la presencia de puentes y conexiones virtuales"""
+def analyze_threats_and_defenses(game_state):
+    """Analiza amenazas específicas y defensas en el tablero"""
     score = 0
+    board = game_state.board
+    board_size = game_state.board_size
     
-    # Patrones de puente (simplificado)
-    # Un puente es un patrón donde dos fichas del mismo color pueden
-    # conectarse indirectamente aunque el oponente juegue una ficha entre ellas
-    bridge_patterns = [
-        [(0,0), (1,-1), (2,0)],  # Patrón horizontal
-        [(0,0), (0,2), (1,1)],   # Patrón vertical
-        [(0,0), (2,-1), (1,1)]   # Patrón diagonal
-    ]
+    # Detectar si el jugador humano tiene piezas cerca de conectar
+    human_positions = [(hex.q, hex.r) for hex in board.values() 
+                       if hex.color == COLORS['player1']]
     
-    for (q, r), hex in game_state.board.items():
-        if not hex.color:
-            continue
-            
-        for pattern in bridge_patterns:
-            for rotation in range(6):  # 6 posibles rotaciones en hex
-                valid_bridge = True
-                player_color = None
-                
-                # Rotar el patrón
-                rotated_pattern = rotate_pattern(pattern, rotation)
-                
-                # Verificar si el patrón existe con el mismo color
-                for dq, dr in rotated_pattern:
-                    check_pos = (q + dq, r + dr)
-                    if check_pos not in game_state.board:
-                        valid_bridge = False
-                        break
-                        
-                    check_hex = game_state.board[check_pos]
-                    if player_color is None and check_hex.color:
-                        player_color = check_hex.color
-                    elif check_hex.color != player_color:
-                        valid_bridge = False
-                        break
-                
-                if valid_bridge and player_color:
-                    if player_color == COLORS['player1']:
-                        score -= 40
-                    else:
-                        score += 40
+    # Buscar pares de piezas del humano que estén casi conectadas
+    for i, pos1 in enumerate(human_positions):
+        q1, r1 = pos1
+        
+        # Verificar horizontalmente (conexión potencial del jugador 1)
+        horizontal_pieces = [pos for pos in human_positions if pos[1] == r1]
+        horizontal_pieces.sort()  # Ordenar por q
+        
+        if len(horizontal_pieces) >= 2:
+            # Verificar si hay espacios pequeños entre piezas horizontales
+            for j in range(len(horizontal_pieces) - 1):
+                q_gap = horizontal_pieces[j+1][0] - horizontal_pieces[j][0]
+                if 1 < q_gap <= 3:  # Espacio pequeño entre piezas
+                    # ¡Amenaza detectada! Priorizar bloquear
+                    score += 100 * (4 - q_gap)
+    
+    # Contar piezas en zonas de conexión críticas
+    central_zone = [(q, r) for q in range(-2, 3) for r in range(-2, 3) 
+                    if (q, r) in board and abs(q + r) <= 3]
+    
+    ai_pieces_in_center = sum(1 for pos in central_zone 
+                             if pos in board and board[pos].color == COLORS['player2'])
+    human_pieces_in_center = sum(1 for pos in central_zone 
+                                if pos in board and board[pos].color == COLORS['player1'])
+    
+    # Más piezas en el centro = más control
+    score += (ai_pieces_in_center - human_pieces_in_center) * 30
+    
+    # Analizar potencial de bloqueo en áreas críticas
+    horizontal_axis = [(q, 0) for q in range(-board_size//2, board_size//2 + 1) 
+                       if (q, 0) in board]
+    vertical_axis = [(0, r) for r in range(-board_size//2, board_size//2 + 1) 
+                     if (0, r) in board]
+    
+    # Contar control de ejes
+    ai_h_control = sum(1 for pos in horizontal_axis 
+                       if board[pos].color == COLORS['player2'])
+    human_h_control = sum(1 for pos in horizontal_axis 
+                          if board[pos].color == COLORS['player1'])
+    
+    ai_v_control = sum(1 for pos in vertical_axis 
+                       if board[pos].color == COLORS['player2'])
+    human_v_control = sum(1 for pos in vertical_axis 
+                          if board[pos].color == COLORS['player1'])
+    
+    # En Hex, controlar el eje contrario al propio es crucial para bloquear
+    score += (ai_h_control * 40) - (human_h_control * 20)
     
     return score
-
-def rotate_pattern(pattern, rotation):
-    """Rota un patrón de coordenadas axiales en hexágonos"""
-    # Matrices de rotación para coordenadas axiales (60° por rotación)
-    rotation_matrices = [
-        [[1, 0], [0, 1]],                # 0°
-        [[1, -1], [1, 0]],               # 60°
-        [[0, -1], [1, -1]],              # 120°
-        [[-1, 0], [0, -1]],              # 180°
-        [[-1, 1], [-1, 0]],              # 240°
-        [[0, 1], [-1, 1]]                # 300°
-    ]
-    
-    matrix = rotation_matrices[rotation % 6]
-    rotated = []
-    
-    for q, r in pattern:
-        new_q = matrix[0][0] * q + matrix[0][1] * r
-        new_r = matrix[1][0] * q + matrix[1][1] * r
-        rotated.append((new_q, new_r))
-    
-    return rotated
