@@ -1,9 +1,7 @@
 import os
 from hex_board import HexBoard
 from player import IAPlayer
-from pablo import RavePlayer
-from diego import VieraPlayer
-from jorge import HexBot
+
 
 
 def clear_console():
@@ -34,7 +32,7 @@ def main():
         }
     elif mode == "3":
         player_objects = {
-            1: HexBot(1),  # IA
+            1: IAPlayer(1),  # IA
             2: IAPlayer(2)   # IA
         }
     else:
