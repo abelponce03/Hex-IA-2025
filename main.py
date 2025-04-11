@@ -1,163 +1,84 @@
-import pygame
-import pygame.gfxdraw
-from game import HexagonGame
-from config import WIDTH, HEIGHT, COLORS
-from draw import draw_hexagon, draw_win_message, draw_edges, draw_glass_button_1, draw_ai_thinking
-from game import ai_turn
-from menu import menu
-import queue
+import os
+from hex_board import HexBoard
+from player import IAPlayer
+from pablo import RavePlayer
+from diego import VieraPlayer
+from jorge import HexBot
 
+
+def clear_console():
+    os.system('cls' if os.name == 'nt' else 'clear')
 
 def main():
-    
-    pygame.init()
-    screen = pygame.display.set_mode((WIDTH, HEIGHT), pygame.SRCALPHA)
-    pygame.display.set_caption("Hex")
-    clock = pygame.time.Clock()
+    print("Bienvenido a HEX")
+    try:
+       size = int(input("Ingrese el tamaño del tablero (por ejemplo, 5): "))
+    except ValueError:
+        print("Tamaño inválido. Usando tamaño 5 por defecto.")
+        size = 5
 
-    
+    board = HexBoard(size)
+
+    # Game mode:
+    # 1: Dos jugadores humanos
+    # 2: Humano (jugador 1) vs. IA (jugador 2)
+    # 3: IA vs IA
+    mode = input("Seleccione modo de juego (1: Humano vs Humano, 2: Humano vs IA, 3: IA vs IA): ")
+
+    if mode == "2":
+        human_player = int(input("Elija su identificador (1 para 🔴, 2 para 🔵): "))
+        ai_player = 2 if human_player == 1 else 1
+        player_objects = {
+            human_player: None,  # Humano: Él hace su propio input
+           ai_player: IAPlayer(ai_player)
+        }
+    elif mode == "3":
+        player_objects = {
+            1: HexBot(1),  # IA
+            2: IAPlayer(2)   # IA
+        }
+    else:
+        player_objects = {
+            1: None,  # Humano
+            2: None   # Humano
+        }
+
+    current_player = 1
     while True:
-        
-        # Mostrar menú inicial
-        in_menu = True
-        vs_ai = False 
-        board_size = 11
-        running = True
-        
-        running = True
-    
-        while in_menu:
-        
-            in_menu, board_size, vs_ai, running = menu(in_menu, screen, board_size, vs_ai, running)        
-            if not running:
-                pygame.quit()            
-            
-            
-        game = HexagonGame(vs_ai=vs_ai, board_size=board_size)
-        hover_hex = None
-        prev_hover_hex = None  # Para detectar cambios en el hover
+        clear_console()
+        board.print_board()
 
-        game_running = True
-        while game_running:
-        
-            # Capturar fondo antes del desenfoque
-            background = screen.copy()
-            screen.fill(COLORS['background'])
-            mouse_pos = pygame.mouse.get_pos()
-            hover_hex = game.get_hex_at_position(mouse_pos)
+        if board.check_connection(1):
+            print("¡El jugador 1 (🔴) ha ganado!")
+            break
+        if board.check_connection(2):
+            print("¡El jugador 2 (🔵) ha ganado!")
+            break
+        if not board.get_possible_moves():
+            print("Empate. No hay más movimientos disponibles.")
+            break
 
-            # Sonido al pasar sobre hexágono
-            if hover_hex != prev_hover_hex and hover_hex is not None:
-                game.sounds['hover'].play()
-            prev_hover_hex = hover_hex
-        
-            # Dibujar hexágonos
-            for hex in game.board.values():
-                draw_hexagon(screen, hex, hover_hex == hex, game.board)
-            
-            #Dibujar extremos a conectar
-            #draw_edges(screen, game.board_size, game.board)
-        
-            button_size = 80  # Tamaño cuadrado
-            button_margin = 10
-            button_font = pygame.font.SysFont('Arial', 20, bold=True)
-            mouse_pos = pygame.mouse.get_pos()
+        print(f"\n \n Turno del jugador {current_player} ({'🔴' if current_player==1 else '🔵'}).")
 
-            # Posiciones iniciales
-            start_x = 40
-            start_y = 40
+        if player_objects.get(current_player) is None:
+            # movimiento del humano(por coordenadas)
+            try:
+                move_input = input("Ingrese su movimiento como 'fila columna': ")
+                row, col = map(int, move_input.split())
+            except Exception as e:
+                print("Entrada inválida. Inténtelo de nuevo.")
+                continue
+            if (row, col) not in board.get_possible_moves():
+                print("Movimiento no válido o casilla ocupada. Inténtelo de nuevo.")
+                continue
+            board.place_piece(row, col, current_player)
+        else:
+            move = player_objects[current_player].play(board)
+            print(f"La IA juega en la posición: {move}")
+            board.place_piece(move[0], move[1], current_player)
 
-            # Botón Menú (icono o texto compacto)
-            menu_btn_rect = draw_glass_button_1(
-                "≡",  # Símbolo hamburguesa
-                start_y,
-                COLORS['player1'],
-                mouse_pos,
-                screen,
-                button_font,
-                pos_x=start_x,
-                width=button_size,
-                height=button_size
-            )
-
-            # Botón Reiniciar (icono de flecha circular)
-            restart_btn_rect = draw_glass_button_1(
-                "R",
-                start_y + button_size + button_margin,
-                COLORS['player2'],
-                mouse_pos,
-                screen,
-                button_font,
-                pos_x=start_x,
-                width=button_size,
-                height=button_size
-            )
-
-            # Botón Salir (X)
-            exit_btn_rect = draw_glass_button_1(
-                "×",
-                start_y + 2*(button_size + button_margin),
-                COLORS['red'],
-                mouse_pos,
-                screen,
-                button_font,
-                pos_x=start_x,
-                width=button_size,
-                height=button_size
-            )
-        
-            # Turno de la IA (solo en modo vs IA)
-            # Verificar si la IA ha terminado de pensar
-            if game.vs_ai and not game.game_over and game.current_player == 2:
-                ai_turn(game)
-                try:
-                    # Esperar un tiempo razonable pero no bloquear indefinidamente
-                    ai_move = game.ai_queue.get(block=False)
-                    if ai_move:
-                        print(f"IA juega en: {ai_move}")  # Depuración
-                        game.play_move(*ai_move)
-                except queue.Empty:
-                    # Mostrar indicador de carga mientras la IA piensa
-                    draw_ai_thinking(screen)
-        
-            # Procesar eventos
-            for event in pygame.event.get():
-                if event.type == pygame.QUIT:
-                    pygame.quit()
-                    return
-                elif event.type == pygame.MOUSEBUTTONDOWN:
-                    # Reiniciar partida
-                    if restart_btn_rect.collidepoint(event.pos):
-                        game = HexagonGame(vs_ai=vs_ai, board_size=board_size)
-                    # Volver al menú
-                    elif menu_btn_rect.collidepoint(event.pos):
-                        game_running = False  # Sale del bucle del juego
-                    # Salir del juego
-                    elif exit_btn_rect.collidepoint(event.pos):
-                        pygame.quit()
-                        return
-                    # Jugada del usuario
-                    else:
-                        game.handle_click(mouse_pos)
-        
-        
-            
-            # Mensaje de victoria
-            if game.game_over:
-                restart_rect, exit_rect, menu_rect = draw_win_message(screen, game, background)
-                for event in pygame.event.get():
-                    if event.type == pygame.MOUSEBUTTONDOWN:
-                        if restart_rect.collidepoint(event.pos):
-                            game = HexagonGame(vs_ai=vs_ai, board_size=board_size)
-                        elif exit_rect.collidepoint(event.pos):
-                            pygame.quit()
-                            return
-                        elif menu_rect.collidepoint(event.pos):
-                            game_running = False
-
-            pygame.display.flip()
-            clock.tick(60)
-
+        # Cambiar turno
+        current_player = 2 if current_player == 1 else 1
 
 if __name__ == "__main__":
     main()
