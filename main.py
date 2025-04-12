@@ -1,6 +1,7 @@
 import os
-from hex_board import HexBoard
+from board import BoardAbel
 from player import IAPlayer
+
 
 
 
@@ -15,7 +16,7 @@ def main():
         print("Tamaño inválido. Usando tamaño 5 por defecto.")
         size = 5
 
-    board = HexBoard(size)
+    board = BoardAbel(size)
 
     # Game mode:
     # 1: Dos jugadores humanos
@@ -43,7 +44,7 @@ def main():
 
     current_player = 1
     while True:
-        clear_console()
+        #clear_console()
         board.print_board()
 
         if board.check_connection(1):
@@ -51,9 +52,6 @@ def main():
             break
         if board.check_connection(2):
             print("¡El jugador 2 (🔵) ha ganado!")
-            break
-        if not board.get_possible_moves():
-            print("Empate. No hay más movimientos disponibles.")
             break
 
         print(f"\n \n Turno del jugador {current_player} ({'🔴' if current_player==1 else '🔵'}).")
