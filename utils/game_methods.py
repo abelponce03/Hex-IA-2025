@@ -49,7 +49,10 @@ def adjust_search_depth(self, board: HexBoard) -> None:
     """Ajusta la profundidad de búsqueda según el estado del juego"""
     # Base según tamaño del tablero
     
-    self.max_depth = 2
+    if board.size <= 7:
+        self.max_depth = 3
+    else:
+        self.max_depth = 2
     
     # Ajuste por movimientos restantes
     moves_remaining = len(board.get_possible_moves())
